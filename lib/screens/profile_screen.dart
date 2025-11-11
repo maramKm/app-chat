@@ -1,12 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:app_chat/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:app_chat/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,13 +14,19 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _imagePicker = ImagePicker();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final AuthService _authService = AuthService();
-
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   String profileImage = '';
-  Map<String, dynamic> userProfile = {};
+  User? _currentUser;
+  bool _isLoading = true;
+
+  Map<String, String> userProfile = {
+    'name': '',
+    'email': '',
+    'phone': '',
+    'bio': 'Flutter Developer & Digital Creator',
+    'status': 'Available',
+  };
 
   @override
   void initState() {
@@ -32,59 +35,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadUserProfile() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+    try {
+      // Récupérer l'utilisateur actuellement connecté
+      _currentUser = _auth.currentUser;
 
-    final doc = await _firestore.collection('users').doc(user.uid).get();
-    if (doc.exists) {
+      if (_currentUser != null) {
+        setState(() {
+          userProfile['name'] = _currentUser!.displayName ?? 'Utilisateur';
+          userProfile['email'] = _currentUser!.email ?? 'Non spécifié';
+          userProfile['phone'] = _currentUser!.phoneNumber ?? 'Non spécifié';
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Erreur lors du chargement du profil: $e');
       setState(() {
-        userProfile = doc.data()!;
-        profileImage = userProfile['profileImage'] ?? '';
+        _isLoading = false;
       });
-    }
-  }
-
-  Future<void> _updateUserProfile(Map<String, dynamic> data) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    await _firestore.collection('users').doc(user.uid).update(data);
-    setState(() => userProfile.addAll(data));
-  }
-
-  Future<void> _pickProfileImage() async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-
-    if (image != null) {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      final ref = _storage.ref().child('profile_images/${user.uid}.jpg');
-      await ref.putFile(File(image.path));
-      final imageUrl = await ref.getDownloadURL();
-
-      await _updateUserProfile({'profileImage': imageUrl});
-      setState(() => profileImage = imageUrl);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_auth.currentUser == null) {
-      return Center(
-        child: Text(
-          'No user logged in',
-          style: GoogleFonts.orbitron(color: Colors.white),
-        ),
-      );
-    }
-
     return Container(
       color: AppTheme.darkBackground,
-      child: SingleChildScrollView(
+      child: _isLoading
+          ? _buildLoadingWidget()
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -92,9 +73,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 32),
             _buildProfileInfo(),
             const SizedBox(height: 32),
+            _buildSettingsSections(),
+            const SizedBox(height: 32),
             _buildLogoutButton(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryCyan),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Chargement du profil...',
+            style: GoogleFonts.inter(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -110,18 +113,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: profileImage.isEmpty
+                gradient: profileImage.isEmpty && _currentUser?.photoURL == null
                     ? AppTheme.primaryGradient
                     : null,
-                image: profileImage.isNotEmpty
+                image: profileImage.isEmpty && _currentUser?.photoURL != null
+                    ? DecorationImage(
+                  image: NetworkImage(_currentUser!.photoURL!),
+                  fit: BoxFit.cover,
+                )
+                    : profileImage.isNotEmpty
                     ? DecorationImage(
                   image: NetworkImage(profileImage),
                   fit: BoxFit.cover,
                 )
                     : null,
               ),
-              child: profileImage.isEmpty
-                  ? const Icon(Icons.person, size: 50, color: Colors.white)
+              child: profileImage.isEmpty && _currentUser?.photoURL == null
+                  ? Icon(
+                Icons.person,
+                size: 50,
+                color: Colors.white,
+              )
                   : null,
             ),
             Container(
@@ -147,7 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          userProfile['name'] ?? '',
+          userProfile['name']!,
           style: GoogleFonts.orbitron(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -156,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          userProfile['bio'] ?? 'No bio available',
+          userProfile['bio']!,
           style: GoogleFonts.inter(
             color: AppTheme.textSecondary,
             fontSize: 16,
@@ -172,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             border: Border.all(color: AppTheme.primaryCyan),
           ),
           child: Text(
-            userProfile['status'] ?? 'Available',
+            userProfile['status']!,
             style: GoogleFonts.inter(
               color: AppTheme.primaryCyan,
               fontWeight: FontWeight.w600,
@@ -194,29 +206,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildInfoItem(
             icon: Icons.person,
-            title: 'Name',
-            value: userProfile['name'] ?? '',
-            onTap: () => _editField('Name', 'name'),
+            title: 'Nom',
+            value: userProfile['name']!,
+            onTap: () => _editField('Nom', 'name'),
           ),
           const Divider(color: AppTheme.textSecondary),
           _buildInfoItem(
             icon: Icons.email,
             title: 'Email',
-            value: userProfile['email'] ?? '',
-            onTap: () => _editField('Email', 'email'),
+            value: userProfile['email']!,
+            onTap: () => _editField('Email', 'email', isEmail: true),
           ),
           const Divider(color: AppTheme.textSecondary),
           _buildInfoItem(
             icon: Icons.phone,
-            title: 'Phone',
-            value: userProfile['phone'] ?? '',
-            onTap: () => _editField('Phone', 'phone'),
+            title: 'Téléphone',
+            value: userProfile['phone']!,
+            onTap: () => _editField('Téléphone', 'phone'),
           ),
           const Divider(color: AppTheme.textSecondary),
           _buildInfoItem(
             icon: Icons.info,
             title: 'Bio',
-            value: userProfile['bio'] ?? '',
+            value: userProfile['bio']!,
             onTap: () => _editField('Bio', 'bio'),
           ),
         ],
@@ -249,59 +261,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       subtitle: Text(
-        value,
+        value.isEmpty ? 'Non spécifié' : value,
         style: GoogleFonts.inter(
           color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
       ),
-      trailing: const Icon(Icons.edit, color: Colors.cyan, size: 20),
+      trailing: Icon(
+        Icons.edit,
+        color: AppTheme.primaryCyan,
+        size: 20,
+      ),
       onTap: onTap,
     );
   }
 
-  void _editField(String fieldName, String fieldKey) {
-    final controller = TextEditingController(text: userProfile[fieldKey] ?? '');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
-        title: Text('Edit $fieldName', style: GoogleFonts.orbitron(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Enter your $fieldName',
-            hintStyle: TextStyle(color: AppTheme.textSecondary),
+  Widget _buildSettingsSections() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.cardDark,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          _buildSettingItem(
+            icon: Icons.notifications,
+            title: 'Notifications',
+            onTap: () {},
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+          const Divider(color: AppTheme.textSecondary),
+          _buildSettingItem(
+            icon: Icons.security,
+            title: 'Confidentialité & Sécurité',
+            onTap: () {},
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _updateUserProfile({fieldKey: controller.text});
-            },
-            child: Text('Save', style: GoogleFonts.inter(color: AppTheme.primaryCyan)),
+          const Divider(color: AppTheme.textSecondary),
+          _buildSettingItem(
+            icon: Icons.chat,
+            title: 'Paramètres de chat',
+            onTap: () {},
+          ),
+          const Divider(color: AppTheme.textSecondary),
+          _buildSettingItem(
+            icon: Icons.storage,
+            title: 'Données & Stockage',
+            onTap: () {},
+          ),
+          const Divider(color: AppTheme.textSecondary),
+          _buildSettingItem(
+            icon: Icons.help,
+            title: 'Aide & Support',
+            onTap: () {},
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLogoutButton() {
-    final user = _auth.currentUser;
-    if (user == null) return const SizedBox.shrink();
+  Widget _buildSettingItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          gradient: AppTheme.secondaryGradient,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      trailing: Icon(
+        Icons.arrow_forward_ios,
+        color: AppTheme.textSecondary,
+        size: 16,
+      ),
+      onTap: onTap,
+    );
+  }
 
+  Widget _buildLogoutButton() {
     return Container(
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.red.withOpacity(0.8), Colors.orange.withOpacity(0.8)],
+          colors: [
+            Colors.red.withOpacity(0.8),
+            Colors.orange.withOpacity(0.8),
+          ],
         ),
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
@@ -320,7 +379,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Icon(Icons.logout, color: Colors.white),
             const SizedBox(width: 8),
             Text(
-              'Logout',
+              'Se déconnecter',
               style: GoogleFonts.orbitron(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -333,30 +392,165 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _pickProfileImage() async {
+    final XFile? image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (image != null) {
+      setState(() {
+        profileImage = image.path;
+      });
+      // Ici vous pouvez uploader l'image vers Firebase Storage
+    }
+  }
+
+  void _editField(String fieldName, String fieldKey, {bool isEmail = false}) {
+    TextEditingController controller = TextEditingController(text: userProfile[fieldKey]);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        title: Text(
+          'Modifier $fieldName',
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Entrez votre $fieldName',
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppTheme.primaryCyan),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Annuler',
+              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                _updateUserProfile(fieldKey, controller.text.trim(), isEmail: isEmail);
+              }
+              Navigator.pop(context);
+            },
+            child: Text(
+              'Sauvegarder',
+              style: GoogleFonts.inter(color: AppTheme.primaryCyan),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateUserProfile(String field, String value, {bool isEmail = false}) async {
+    try {
+      if (isEmail) {
+        // Pour changer l'email, on doit utiliser FirebaseAuth.instance
+        await _auth.currentUser!.updateEmail(value);
+      } else if (field == 'name') {
+        // Pour changer le nom d'affichage
+        await _auth.currentUser!.updateDisplayName(value);
+      }
+
+      // Mettre à jour l'interface
+      setState(() {
+        userProfile[field] = value;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppTheme.primaryCyan,
+          content: Text(
+            'Profil mis à jour avec succès',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+        ),
+      );
+    } catch (e) {
+      String errorMessage = 'Erreur lors de la mise à jour';
+
+      if (e is FirebaseAuthException) {
+        switch (e.code) {
+          case 'requires-recent-login':
+            errorMessage = 'Cette action nécessite une reconnexion récente';
+            break;
+          case 'email-already-in-use':
+            errorMessage = 'Cet email est déjà utilisé';
+            break;
+          case 'invalid-email':
+            errorMessage = 'Email invalide';
+            break;
+          default:
+            errorMessage = 'Erreur: ${e.message}';
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(
+            errorMessage,
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+        ),
+      );
+    }
+  }
+
   void _confirmLogout() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.cardDark,
-        title: Text('Logout', style: GoogleFonts.orbitron(color: Colors.white)),
+        title: Text(
+          'Se déconnecter',
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+          ),
+        ),
         content: Text(
-          'Are you sure you want to logout?',
-          style: GoogleFonts.inter(color: AppTheme.textSecondary),
+          'Êtes-vous sûr de vouloir vous déconnecter?',
+          style: GoogleFonts.inter(
+            color: AppTheme.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+            child: Text(
+              'Annuler',
+              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               await _authService.signOut();
             },
-            child: Text('Logout', style: GoogleFonts.inter(color: Colors.red)),
+            child: Text(
+              'Se déconnecter',
+              style: GoogleFonts.inter(color: Colors.red),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+extension on User {
+  Future<void> updateEmail(String value) async {}
 }

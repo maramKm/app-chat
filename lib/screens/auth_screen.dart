@@ -162,7 +162,8 @@ class _AuthScreenState extends State<AuthScreen>
                       ),
                     ),
                     const Spacer(),
-                    const SizedBox(width: 48),
+                    const SizedBox(width:48),
+
                   ],
                 ),
                 const SizedBox(height: 40),

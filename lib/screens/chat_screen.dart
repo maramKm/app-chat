@@ -3,11 +3,19 @@ import 'package:app_chat/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:app_chat/models/chat_model.dart';
 import 'package:app_chat/models/message_model.dart';
+import 'package:app_chat/services/chat_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
+  final String currentUserId;
 
-  const ChatScreen({super.key, required this.chat});
+  const ChatScreen({
+    super.key,
+    required this.chat,
+    required this.currentUserId
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -15,43 +23,36 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final List<Message> _messages = [
-    Message(
-      id: '1',
-      text: 'Hey there! How are you doing?',
-      senderId: '2',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
-      isMe: false,
-    ),
-    Message(
-      id: '2',
-      text: 'I\'m good! Just working on the new Flutter project.',
-      senderId: '1',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 8)),
-      isMe: true,
-    ),
-    Message(
-      id: '3',
-      text: 'That sounds great! How is it going?',
-      senderId: '2',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      isMe: false,
-    ),
-    Message(
-      id: '4',
-      text: 'It\'s going really well. The UI is almost complete.',
-      senderId: '1',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
-      isMe: true,
-    ),
-    Message(
-      id: '5',
-      text: 'Awesome! Can\'t wait to see it. 😊',
-      senderId: '2',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-      isMe: false,
-    ),
-  ];
+  late ChatService _chatService;
+  final List<Message> _messages = [];
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _chatService = ChatService(chatId: widget.chat.id);
+    _loadMessages();
+  }
+
+  void _loadMessages() {
+    _chatService.getMessagesStream().listen((messages) {
+      setState(() {
+        _messages.clear();
+        _messages.addAll(messages);
+      });
+
+      // Scroll vers le bas quand de nouveaux messages arrivent
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +62,10 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
+            child: _messages.isEmpty
+                ? _buildEmptyChatWidget()
+                : ListView.builder(
+              controller: _scrollController,
               reverse: true,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
@@ -92,10 +96,16 @@ class _ChatScreenState extends State<ChatScreen> {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              image: DecorationImage(
-                image: NetworkImage(
-                    'https://i.pravatar.cc/150?img=${widget.chat.id}'),
-                fit: BoxFit.cover,
+              gradient: AppTheme.primaryGradient,
+            ),
+            child: Center(
+              child: Text(
+                _getInitials(widget.chat.name),
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -111,7 +121,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               Text(
-                widget.chat.isOnline ? 'Online' : 'Offline',
+                widget.chat.isOnline ? 'En ligne' : 'Hors ligne',
                 style: GoogleFonts.inter(
                   color: widget.chat.isOnline ? Colors.green : AppTheme.textSecondary,
                   fontSize: 12,
@@ -132,39 +142,41 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         IconButton(
           icon: const Icon(Icons.more_vert, color: AppTheme.textPrimary),
-          onPressed: () {},
+          onPressed: () => _showMoreOptions(),
         ),
       ],
     );
   }
 
   Widget _buildMessageBubble(Message message) {
+    final isCurrentUser = message.senderId == widget.currentUserId;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment:
-        message.isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!message.isMe)
+          if (!isCurrentUser)
             Container(
               width: 32,
               height: 32,
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                image: DecorationImage(
-                  image: NetworkImage(
-                      'https://i.pravatar.cc/150?img=${widget.chat.id}'),
-                  fit: BoxFit.cover,
-                ),
+                gradient: AppTheme.secondaryGradient,
+              ),
+              child: Icon(
+                Icons.person,
+                color: Colors.white,
+                size: 18,
               ),
             ),
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: message.isMe
+                gradient: isCurrentUser
                     ? AppTheme.primaryGradient
                     : LinearGradient(
                   colors: [
@@ -174,7 +186,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  if (message.isMe)
+                  if (isCurrentUser)
                     BoxShadow(
                       color: AppTheme.primaryCyan.withOpacity(0.3),
                       blurRadius: 8,
@@ -185,10 +197,23 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Afficher le nom de L'ENVOYEUR pour les messages REÇUS
+                  if (!isCurrentUser)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        message.senderName,
+                        style: GoogleFonts.inter(
+                          color: AppTheme.primaryCyan,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   Text(
                     message.text,
                     style: GoogleFonts.inter(
-                      color: message.isMe ? Colors.white : AppTheme.textPrimary,
+                      color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
                       fontSize: 16,
                     ),
                   ),
@@ -196,18 +221,51 @@ class _ChatScreenState extends State<ChatScreen> {
                   Text(
                     _formatMessageTime(message.timestamp),
                     style: GoogleFonts.inter(
-                      color: message.isMe
+                      color: isCurrentUser
                           ? Colors.white70
                           : AppTheme.textSecondary,
-                      fontSize: 12,
+                      fontSize: 10,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          if (message.isMe)
+          if (isCurrentUser)
             const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyChatWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 80,
+            color: AppTheme.textSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Commencez la conversation',
+            style: GoogleFonts.inter(
+              color: AppTheme.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Envoyez votre premier message à ${widget.chat.name}',
+            style: GoogleFonts.inter(
+              color: AppTheme.textSecondary,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -248,7 +306,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 controller: _messageController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
+                  hintText: 'Tapez un message...',
                   hintStyle: TextStyle(color: AppTheme.textSecondary),
                   border: InputBorder.none,
                   suffixIcon: IconButton(
@@ -258,6 +316,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 maxLines: null,
+                onSubmitted: (text) => _sendMessage(),
               ),
             ),
           ),
@@ -311,7 +370,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Share Media',
+              'Partager un média',
               style: GoogleFonts.orbitron(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -324,23 +383,35 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 _buildAttachmentOption(
                   icon: Icons.photo,
-                  label: 'Gallery',
-                  onTap: () {},
+                  label: 'Galerie',
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Implémenter la galerie
+                  },
                 ),
                 _buildAttachmentOption(
                   icon: Icons.camera_alt,
-                  label: 'Camera',
-                  onTap: () {},
+                  label: 'Caméra',
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Implémenter la caméra
+                  },
                 ),
                 _buildAttachmentOption(
                   icon: Icons.insert_drive_file,
-                  label: 'File',
-                  onTap: () {},
+                  label: 'Fichier',
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Implémenter les fichiers
+                  },
                 ),
                 _buildAttachmentOption(
                   icon: Icons.location_on,
-                  label: 'Location',
-                  onTap: () {},
+                  label: 'Localisation',
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Implémenter la localisation
+                  },
                 ),
               ],
             ),
@@ -350,59 +421,211 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.textSecondary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Icon(Icons.person, color: AppTheme.primaryCyan),
+              title: Text('Voir le profil', style: GoogleFonts.inter(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                // Naviguer vers le profil
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.block, color: Colors.red),
+              title: Text('Bloquer', style: GoogleFonts.inter(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _showBlockConfirmation();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.report, color: Colors.orange),
+              title: Text('Signaler', style: GoogleFonts.inter(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _showReportDialog();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBlockConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        title: Text('Bloquer ${widget.chat.name}?', style: GoogleFonts.inter(color: Colors.white)),
+        content: Text('Vous ne recevrez plus de messages de cette personne.', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Annuler', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Implémenter le blocage
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${widget.chat.name} a été bloqué'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            child: Text('Bloquer', style: GoogleFonts.inter(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        title: Text('Signaler ${widget.chat.name}', style: GoogleFonts.inter(color: Colors.white)),
+        content: Text('Pourquoi signalez-vous cette personne?', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Annuler', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Signalement envoyé')),
+              );
+            },
+            child: Text('Signaler', style: GoogleFonts.inter(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAttachmentOption({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
-    return Column(
-      children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(20),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(icon, color: Colors.white, size: 30),
           ),
-          child: Icon(icon, color: Colors.white, size: 30),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 12,
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 12,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    final newMessage = Message(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: text,
-      senderId: '1',
-      timestamp: DateTime.now(),
-      isMe: true,
-    );
+    try {
+      // Récupérer le nom de l'utilisateur depuis Firestore
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUserId)
+          .get();
 
-    setState(() {
-      _messages.add(newMessage);
-    });
+      final userData = userDoc.data() as Map<String, dynamic>?;
+      final userName = userData?['name'] ?? 'Utilisateur';
 
-    _messageController.clear();
+      final newMessage = Message(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        text: text,
+        senderId: widget.currentUserId,
+        senderName: userName,
+        timestamp: DateTime.now(),
+        type: MessageType.text,
+      );
+
+      await _chatService.sendMessage(newMessage);
+      await _chatService.updateLastMessage(text, widget.currentUserId, userName);
+      _messageController.clear();
+
+      print('✅ Message envoyé avec succès');
+    } catch (error) {
+      print('❌ Erreur: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   String _formatMessageTime(DateTime timestamp) {
     final now = DateTime.now();
-    if (now.difference(timestamp).inDays == 0) {
-      return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 1) {
+      return 'Maintenant';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}min';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h';
     } else {
       return '${timestamp.day}/${timestamp.month} ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
     }
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.split(' ');
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 }
