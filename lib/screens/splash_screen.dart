@@ -18,20 +18,24 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     );
+
     _animation = CurvedAnimation(
       parent: _controller,
       curve: Curves.easeInOut,
     );
+
     _controller.forward();
     _navigateToHome();
   }
 
   void _navigateToHome() {
     Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return; // ✅ empêche l'utilisation du context après dispose
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AuthScreen()),
@@ -80,6 +84,14 @@ class _SplashScreenState extends State<SplashScreen>
               ShaderMask(
                 shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(
                   Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                ),
+                child: Text(
+                  'Konvo',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),

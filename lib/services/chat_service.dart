@@ -15,7 +15,7 @@ class ChatService {
   // Stream des messages en temps réel
   Stream<List<Message>> getMessagesStream() {
     return _messagesCollection
-        .orderBy('timestamp', descending: true)
+        .orderBy('timestamp', descending: false)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
@@ -41,7 +41,6 @@ class ChatService {
     }
   }
 
-  // Méthode pour convertir MessageType en String
   String _messageTypeToString(MessageType type) {
     switch (type) {
       case MessageType.image:
@@ -53,7 +52,6 @@ class ChatService {
     }
   }
 
-  // Vérifier si le chat est vide
   Future<bool> isChatEmpty() async {
     try {
       final snapshot = await _messagesCollection.limit(1).get();
@@ -63,7 +61,6 @@ class ChatService {
     }
   }
 
-  // Mettre à jour le dernier message du chat avec le nom de l'expéditeur
   Future<void> updateLastMessage(String text, String senderId, String senderName) async {
     try {
       await _firestore.collection('chats').doc(chatId).update({
@@ -77,7 +74,6 @@ class ChatService {
     }
   }
 
-  // Marquer les messages comme lus
   Future<void> markMessagesAsRead(String userId) async {
     try {
       await _firestore.collection('chats').doc(chatId).update({
@@ -88,7 +84,8 @@ class ChatService {
     }
   }
 
-  // Stream pour récupérer tous les chats
+
+
   static Stream<List<Chat>> getChatsStream() {
     return FirebaseFirestore.instance
         .collection('chats')
@@ -104,7 +101,6 @@ class ChatService {
     });
   }
 
-  // Récupérer les chats d'un utilisateur spécifique
   static Stream<List<Chat>> getUserChatsStream(String userId) {
     return FirebaseFirestore.instance
         .collection('chats')
@@ -112,17 +108,14 @@ class ChatService {
         .snapshots()
         .asyncMap((snapshot) async {
       List<Chat> chats = [];
-
       for (var doc in snapshot.docs) {
         final chat = await _mapFirestoreToChatWithOtherUserName(doc, userId);
         chats.add(chat);
       }
-
       return chats;
     });
   }
 
-  // Créer un nouveau chat avec les noms des participants
   static Future<Chat> createChat({
     required String user1,
     required String user2,
@@ -132,7 +125,6 @@ class ChatService {
     try {
       final chatId = _generateChatId(user1, user2);
 
-      // Récupérer les noms des deux utilisateurs
       final user1Name = await _getUserName(user1);
       final user2Name = await _getUserName(user2);
 
@@ -170,7 +162,6 @@ class ChatService {
     }
   }
 
-  // Vérifier si un chat existe
   static Future<Chat> getOrCreateChat({
     required String currentUserId,
     required String otherUserId,
@@ -185,7 +176,6 @@ class ChatService {
           .get();
 
       Chat chat;
-
       if (chatDoc.exists) {
         chat = await _mapFirestoreToChatWithOtherUserName(chatDoc, currentUserId);
       } else {
@@ -195,7 +185,6 @@ class ChatService {
           userName: otherUserName,
           userProfileImage: otherUserProfileImage,
         );
-
       }
 
       return chat;
@@ -204,20 +193,16 @@ class ChatService {
     }
   }
 
-
-  // Mapper Firestore → Chat avec récupération du nom de l'autre utilisateur
   static Future<Chat> _mapFirestoreToChatWithOtherUserName(DocumentSnapshot doc, String currentUserId) async {
     final data = doc.data() as Map<String, dynamic>;
     final participants = List<String>.from(data['participants'] ?? []);
-
-    // Récupérer le nom de l'autre participant
     String otherUserName = await _getOtherUserName(participants, currentUserId);
 
     return Chat(
       id: data['id'] ?? doc.id,
-      name: otherUserName, // Utiliser le nom de l'autre participant
+      name: otherUserName,
       lastMessage: data['lastMessage'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       unreadCount: data['unreadCount'] ?? 0,
       isOnline: data['isOnline'] ?? false,
       profileImage: data['profileImage'] ?? '',
@@ -225,15 +210,13 @@ class ChatService {
     );
   }
 
-  // Mapper Firestore → Chat (version simple)
   static Future<Chat> _mapFirestoreToChat(DocumentSnapshot doc) async {
     final data = doc.data() as Map<String, dynamic>;
-
     return Chat(
       id: data['id'] ?? doc.id,
       name: data['name'] ?? 'Sans nom',
       lastMessage: data['lastMessage'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       unreadCount: data['unreadCount'] ?? 0,
       isOnline: data['isOnline'] ?? false,
       profileImage: data['profileImage'] ?? '',
@@ -241,19 +224,13 @@ class ChatService {
     );
   }
 
-  // Récupérer le nom de l'autre participant
   static Future<String> _getOtherUserName(List<String> participants, String currentUserId) async {
     try {
-      // Trouver l'ID de l'autre participant
       final otherUserId = participants.firstWhere(
-              (id) => id != currentUserId,
-          orElse: () => currentUserId
+            (id) => id != currentUserId,
+        orElse: () => currentUserId,
       );
-
-      if (otherUserId == currentUserId) {
-        return 'Moi-même';
-      }
-
+      if (otherUserId == currentUserId) return 'Moi-même';
       return await _getUserName(otherUserId);
     } catch (e) {
       print('Erreur récupération nom autre utilisateur: $e');
@@ -261,7 +238,6 @@ class ChatService {
     }
   }
 
-  // Récupérer le nom d'un utilisateur depuis Firestore
   static Future<String> _getUserName(String userId) async {
     try {
       final userDoc = await FirebaseFirestore.instance
@@ -281,33 +257,26 @@ class ChatService {
     }
   }
 
-  // Générer un ID de chat déterministe
   static String _generateChatId(String user1, String user2) {
     List<String> users = [user1, user2];
     users.sort();
     return '${users[0]}_${users[1]}';
   }
 
-  // Supprimer un chat (méthode d'instance)
   Future<void> deleteChatInstance() async {
     try {
-      // Supprimer tous les messages d'abord
       final messages = await _messagesCollection.get();
       for (final doc in messages.docs) {
         await doc.reference.delete();
       }
-
-      // Supprimer le chat
       await _firestore.collection('chats').doc(chatId).delete();
     } catch (e) {
       throw Exception('Erreur lors de la suppression du chat: $e');
     }
   }
 
-  // Supprimer une conversation complète (méthode statique)
   static Future<void> deleteChat(String chatId) async {
     try {
-      // 1. Supprimer tous les messages de la conversation
       final messagesSnapshot = await FirebaseFirestore.instance
           .collection('chats')
           .doc(chatId)
@@ -320,11 +289,7 @@ class ChatService {
       }
       await batch.commit();
 
-      // 2. Supprimer le document du chat
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatId)
-          .delete();
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).delete();
 
       print('Conversation supprimée: $chatId');
     } catch (e) {
@@ -333,43 +298,6 @@ class ChatService {
     }
   }
 
-  // Archiver une conversation (alternative à la suppression)
-  static Future<void> archiveChat(String chatId, String userId) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatId)
-          .update({
-        'archivedBy': FieldValue.arrayUnion([userId]),
-        'archivedAt': FieldValue.serverTimestamp(),
-      });
-      print('Conversation archivée: $chatId');
-    } catch (e) {
-      print('Erreur archivage conversation: $e');
-      throw Exception('Erreur lors de l\'archivage de la conversation: $e');
-    }
-  }
-
-  // Récupérer seulement les chats non archivés
-  static Stream<List<Chat>> getUserNonArchivedChatsStream(String userId) {
-    return FirebaseFirestore.instance
-        .collection('chats')
-        .where('participants', arrayContains: userId)
-        .where('archivedBy', whereNotIn: [[userId]]) // Exclure les chats archivés
-        .snapshots()
-        .asyncMap((snapshot) async {
-      List<Chat> chats = [];
-
-      for (var doc in snapshot.docs) {
-        final chat = await _mapFirestoreToChatWithOtherUserName(doc, userId);
-        chats.add(chat);
-      }
-
-      return chats;
-    });
-  }
-
-  // Récupérer les informations du chat
   Future<Chat> getChatInfo() async {
     try {
       final doc = await _firestore.collection('chats').doc(chatId).get();
@@ -383,7 +311,6 @@ class ChatService {
     }
   }
 
-  // Récupérer le nombre de messages non lus
   Future<int> getUnreadCount(String userId) async {
     try {
       final chatDoc = await _firestore.collection('chats').doc(chatId).get();
@@ -392,41 +319,6 @@ class ChatService {
     } catch (e) {
       print('Erreur récupération unreadCount: $e');
       return 0;
-    }
-  }
-
-  // Récupérer les chats archivés
-  static Stream<List<Chat>> getArchivedChatsStream(String userId) {
-    return FirebaseFirestore.instance
-        .collection('chats')
-        .where('participants', arrayContains: userId)
-        .where('archivedBy', arrayContains: [userId])
-        .snapshots()
-        .asyncMap((snapshot) async {
-      List<Chat> chats = [];
-
-      for (var doc in snapshot.docs) {
-        final chat = await _mapFirestoreToChatWithOtherUserName(doc, userId);
-        chats.add(chat);
-      }
-
-      return chats;
-    });
-  }
-
-  // Restaurer un chat archivé
-  static Future<void> unarchiveChat(String chatId, String userId) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatId)
-          .update({
-        'archivedBy': FieldValue.arrayRemove([userId]),
-      });
-      print('Conversation restaurée: $chatId');
-    } catch (e) {
-      print('Erreur restauration conversation: $e');
-      throw Exception('Erreur lors de la restauration de la conversation: $e');
     }
   }
 }

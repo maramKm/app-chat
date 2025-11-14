@@ -103,32 +103,94 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildSuggestionsTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').limit(10).snapshots(),
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return _buildErrorWidget('Erreur de chargement des suggestions');
+        if (snapshot.hasError) return _buildErrorWidget('Erreur de chargement');
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildLoadingWidget();
         }
 
-        final users = snapshot.data!.docs;
+        final allUsers = snapshot.data!.docs
+            .where((doc) => doc.id != _currentUserId)
+            .map((doc) => User.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+            .toList();
 
-        return ListView.builder(
-          padding: EdgeInsets.all(16),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final userDoc = users[index];
-            final userData = userDoc.data() as Map<String, dynamic>;
-            final user = User.fromMap(userData, userDoc.id);
+        // 🔥 Écoute les relations en temps réel
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('friend_requests')
+              .where(Filter.or(
+            Filter('fromUserId', isEqualTo: _currentUserId),
+            Filter('toUserId', isEqualTo: _currentUserId),
+          ))
+              .snapshots(),
+          builder: (context, relationSnap) {
+            if (!relationSnap.hasData) return _buildLoadingWidget();
 
-            // Ne pas afficher l'utilisateur courant
-            if (user.id == _currentUserId) return SizedBox();
+            final relations =
+            relationSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList();
 
-            return _buildSuggestionItem(user);
+            // Liste finale visible
+            final visibleUsers = <User>[];
+
+            for (final user in allUsers) {
+              final relation = relations.firstWhere(
+                    (r) =>
+                (r['fromUserId'] == _currentUserId && r['toUserId'] == user.id) ||
+                    (r['toUserId'] == _currentUserId && r['fromUserId'] == user.id),
+                orElse: () => {},
+              );
+
+              // ✅ afficher uniquement ceux sans relation "accepted"
+              if (relation.isEmpty) {
+                visibleUsers.add(user);
+              } else if (relation['status'] == 'pending' ||
+                  relation['status'] == 'rejected') {
+                visibleUsers.add(user);
+              }
+            }
+
+            if (visibleUsers.isEmpty) {
+              return Center(
+                child: Text(
+                  'Aucune suggestion pour le moment',
+                  style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: visibleUsers.length,
+              itemBuilder: (context, index) {
+                final user = visibleUsers[index];
+                final relation = relations.firstWhere(
+                      (r) =>
+                  (r['fromUserId'] == _currentUserId && r['toUserId'] == user.id) ||
+                      (r['toUserId'] == _currentUserId && r['fromUserId'] == user.id),
+                  orElse: () => {},
+                );
+
+                String status = 'none';
+                if (relation.isNotEmpty) {
+                  if (relation['status'] == 'pending' &&
+                      relation['fromUserId'] == _currentUserId) {
+                    status = 'sent';
+                  } else if (relation['status'] == 'pending' &&
+                      relation['toUserId'] == _currentUserId) {
+                    status = 'received';
+                  }
+                }
+
+                return _buildSuggestionItem(user, status);
+              },
+            );
           },
         );
       },
     );
   }
+
 
   Widget _buildFriendRequestsTab() {
     return StreamBuilder<QuerySnapshot>(
@@ -185,8 +247,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
         return ListView(
           children: [
             _buildContactsHeader(friendsData.length),
-            ...friendsData.map((userData) {
-              final user = User.fromMap(userData, userData['id']);
+            ...friendsData.map((friendData) {
+              // On crée un User avec les infos correctes de l'autre utilisateur
+              final user = User.fromMap({
+                'id': friendData['id'],
+                'name': friendData['name'],
+                'email': friendData['email'],
+                'profileImage': friendData['profileImage'],
+                'isOnline': friendData['isOnline'],
+                'lastSeen': friendData['lastSeen'],
+              }, friendData['id']);
+
               return _buildContactItem(user);
             }).toList(),
           ],
@@ -195,7 +266,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildSuggestionItem(User user) {
+
+  Widget _buildSuggestionItem(User user, String? status) {
+    final String firstLetter = (user.name.isNotEmpty ? user.name[0] : '?').toUpperCase();
+
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(16),
@@ -205,61 +279,70 @@ class _ContactsScreenState extends State<ContactsScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: NetworkImage(user.profileImage.isNotEmpty
-                    ? user.profileImage
-                    : ''),
-                fit: BoxFit.cover,
-              ),
-            ),
+          user.profileImage.isNotEmpty
+              ? CircleAvatar(radius: 25, backgroundImage: NetworkImage(user.profileImage))
+              : CircleAvatar(
+            radius: 25,
+            backgroundColor: AppTheme.primaryCyan.withOpacity(0.8),
+            child: Text(firstLetter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  user.name,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  user.email,
-                  style: GoogleFonts.inter(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
+                Text(user.name.isNotEmpty ? user.name : 'Utilisateur', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+                Text(user.email, style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 12)),
               ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () => _sendFriendRequest(user),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryCyan,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+          if (status == 'none' || status == null)
+            ElevatedButton(
+              onPressed: () => _sendFriendRequest(user),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryCyan, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+              child: const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            )
+          else if (status == 'sent')
+            ElevatedButton(onPressed: null, style: ElevatedButton.styleFrom(backgroundColor: Colors.grey, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))), child: const Text('Invitation sent', style: TextStyle(color: Colors.white)))
+          else if (status == 'received')
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.check, color: Colors.green),
+                    onPressed: () async {
+                      final req = await FirebaseFirestore.instance
+                          .collection('friend_requests')
+                          .where('fromUserId', isEqualTo: user.id)
+                          .where('toUserId', isEqualTo: _currentUserId)
+                          .where('status', isEqualTo: 'pending')
+                          .get();
+                      if (req.docs.isNotEmpty) {
+                        await _friendService.acceptFriendRequest(req.docs.first.id, req.docs.first.data());
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.red),
+                    onPressed: () async {
+                      final req = await FirebaseFirestore.instance
+                          .collection('friend_requests')
+                          .where('fromUserId', isEqualTo: user.id)
+                          .where('toUserId', isEqualTo: _currentUserId)
+                          .where('status', isEqualTo: 'pending')
+                          .get();
+                      if (req.docs.isNotEmpty) {
+                        await _friendService.rejectFriendRequest(req.docs.first.id);
+                      }
+                    },
+                  ),
+                ],
               ),
-            ),
-            child: Text(
-              'Ajouter',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 12,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
+
+
 
   Widget _buildFriendRequestItem(String requestId, Map<String, dynamic> data) {
     final fromUserInfo = data['fromUserInfo'] as Map<String, dynamic>;
@@ -447,11 +530,53 @@ class _ContactsScreenState extends State<ContactsScreen> {
           size: 20,
         ),
       ),
-      onTap: () {
-        _startConversation(user);
+      onTap: () => _startConversation(user),
+      onLongPress: () async {
+        // Confirmer la suppression
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Supprimer ce contact ?'),
+            content: Text('Voulez-vous vraiment retirer ${user.name} de vos contacts ?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('Annuler'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text('Supprimer'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm == true) {
+          try {
+            await _friendService.removeFriend(
+              userId: _currentUserId,
+              friendId: user.id,
+            );
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${user.name} a été supprimé de vos contacts'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Erreur: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       },
     );
   }
+
 
   Widget _buildLoadingWidget() {
     return Center(
@@ -572,20 +697,32 @@ class _ContactsScreenState extends State<ContactsScreen> {
   void _sendFriendRequest(User user) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser!;
-      final userDoc = await FirebaseFirestore.instance
+      final currentUserDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser.uid)
           .get();
 
-      final userData = userDoc.data() as Map<String, dynamic>;
+      final currentUserData = currentUserDoc.data() as Map<String, dynamic>;
+
+      final toUserDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.id)
+          .get();
+
+      final toUserData = toUserDoc.data() as Map<String, dynamic>;
 
       await _friendService.sendFriendRequest(
         fromUserId: currentUser.uid,
         toUserId: user.id,
         fromUserInfo: {
-          'name': userData['name'] ?? currentUser.displayName ?? 'Utilisateur',
-          'profileImage': userData['profileImage'] ?? currentUser.photoURL ?? '',
-          'email': userData['email'] ?? currentUser.email ?? '',
+          'name': currentUserData['name'] ?? currentUser.displayName ?? 'Utilisateur',
+          'email': currentUserData['email'] ?? currentUser.email ?? '',
+          'profileImage': currentUserData['profileImage'] ?? currentUser.photoURL ?? '',
+        },
+        toUserInfo: {
+          'name': toUserData['name'] ?? user.name,
+          'email': toUserData['email'] ?? user.email,
+          'profileImage': toUserData['profileImage'] ?? user.profileImage,
         },
       );
 
@@ -604,6 +741,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       );
     }
   }
+
 
   void _acceptFriendRequest(String requestId, Map<String, dynamic> data) async {
     try {

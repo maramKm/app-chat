@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:app_chat/theme/app_theme.dart';
 import 'package:app_chat/models/chat_model.dart';
 import 'package:app_chat/services/chat_service.dart';
-import 'chat_screen.dart';
+import 'package:app_chat/screens/chat_screen.dart';
 
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
@@ -19,10 +19,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeChatsStream();
-  }
-
-  void _initializeChatsStream() {
     final currentUserId = FirebaseAuth.instance.currentUser!.uid;
     _chatsStream = ChatService.getUserChatsStream(currentUserId);
   }
@@ -31,538 +27,194 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Widget build(BuildContext context) {
     return Container(
       color: AppTheme.darkBackground,
-      child: Column(
-        children: [
-          _buildStoriesSection(),
-          Expanded(
-            child: _buildChatsList(),
-          ),
-        ],
-      ),
-    );
-  }
+      child: StreamBuilder<List<Chat>>(
+        stream: _chatsStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildLoading();
+          }
+          if (snapshot.hasError) {
+            return _buildError("Erreur de chargement");
+          }
 
-  Widget _buildChatsList() {
-    return StreamBuilder<List<Chat>>(
-      stream: _chatsStream,
-      builder: (context, snapshot) {
-        // État de chargement
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingWidget();
-        }
+          final chats = snapshot.data ?? [];
+          if (chats.isEmpty) return _buildEmpty();
 
-        // Gestion des erreurs
-        if (snapshot.hasError) {
-          return _buildErrorWidget('Erreur de chargement des conversations');
-        }
-
-        // Données reçues
-        final chats = snapshot.data ?? [];
-
-        if (chats.isEmpty) {
-          return _buildEmptyChatsWidget();
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {});
-          },
-          backgroundColor: AppTheme.darkBackground,
-          color: AppTheme.primaryCyan,
-          child: ListView.separated(
-            itemCount: chats.length,
-            separatorBuilder: (context, index) => Divider(
-              height: 1,
-              color: AppTheme.textSecondary.withOpacity(0.1),
-            ),
-            itemBuilder: (context, index) => _buildChatItem(chats[index]),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLoadingWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryCyan),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Chargement des conversations...',
-            style: GoogleFonts.inter(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyChatsWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.chat_bubble_outline,
-            size: 80,
-            color: AppTheme.textSecondary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Aucune conversation',
-            style: GoogleFonts.inter(
-              color: AppTheme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Commencez une nouvelle conversation',
-            style: GoogleFonts.inter(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 60,
-            color: Colors.red,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: GoogleFonts.inter(
-              color: Colors.red,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              _initializeChatsStream();
-              setState(() {});
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryCyan,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            child: Text(
-              'Réessayer',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStoriesSection() {
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.only(bottom: 16),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          _buildAddStoryButton(),
-          const SizedBox(width: 16),
-          ...List.generate(5, (index) => _buildStoryItem(index)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddStoryButton() {
-    return Column(
-      children: [
-        Container(
-          width: 70,
-          height: 70,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppTheme.primaryCyan,
-              width: 2,
-            ),
-          ),
-          child: Icon(
-            Icons.add,
+          return RefreshIndicator(
+            onRefresh: () async => setState(() {}),
             color: AppTheme.primaryCyan,
-            size: 30,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Your Story',
-          style: GoogleFonts.inter(
-            color: AppTheme.textSecondary,
-            fontSize: 12,
-          ),
-        ),
-      ],
+            backgroundColor: AppTheme.darkBackground,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              itemCount: chats.length,
+              itemBuilder: (context, i) => _buildChatTile(chats[i]),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildStoryItem(int index) {
-    return Column(
+  Widget _buildLoading() => Center(
+    child: CircularProgressIndicator(
+      valueColor: AlwaysStoppedAnimation(AppTheme.primaryCyan),
+    ),
+  );
+
+  Widget _buildError(String msg) => Center(
+    child: Text(msg, style: const TextStyle(color: Colors.red)),
+  );
+
+  Widget _buildEmpty() => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          width: 70,
-          height: 70,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            shape: BoxShape.circle,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppTheme.cardDark,
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: NetworkImage(
-                    'https://i.pravatar.cc/150?img=${index + 10}'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
+        Icon(Icons.chat_bubble_outline,
+            size: 80, color: AppTheme.textSecondary.withOpacity(0.5)),
+        const SizedBox(height: 16),
         Text(
-          'User ${index + 1}',
-          style: GoogleFonts.inter(
-            color: AppTheme.textSecondary,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChatItem(Chat chat) {
-    final profileImage = chat.profileImage.isNotEmpty
-        ? NetworkImage(chat.profileImage)
-        : NetworkImage('https://i.pravatar.cc/150?img=${chat.id.hashCode % 70}');
-
-    return Dismissible(
-      key: Key(chat.id),
-      direction: DismissDirection.endToStart,
-      background: _buildDeleteBackground(),
-      confirmDismiss: (direction) async {
-        return await _showDeleteConfirmation(chat);
-      },
-      onDismissed: (direction) {
-        _deleteChat(chat);
-      },
-      child: ListTile(
-        leading: Stack(
-          children: [
-            Container(
-              width: 55,
-              height: 55,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: DecorationImage(
-                  image: profileImage,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              child: chat.profileImage.isEmpty && !chat.isGroup
-                  ? Icon(
-                Icons.person,
-                color: Colors.white,
-              )
-                  : null,
-            ),
-            if (chat.isOnline && !chat.isGroup)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.darkBackground,
-                      width: 2,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        title: Text(
-          chat.name,
+          'Aucune conversation',
           style: GoogleFonts.inter(
             color: AppTheme.textPrimary,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
-            fontSize: 16,
           ),
         ),
-        subtitle: Text(
-          chat.lastMessage,
+        const SizedBox(height: 8),
+        Text(
+          'Commencez une nouvelle discussion',
           style: GoogleFonts.inter(
             color: AppTheme.textSecondary,
-            fontSize: 14,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+      ],
+    ),
+  );
+
+  Widget _buildChatTile(Chat chat) {
+    final hasPhoto = chat.profileImage.isNotEmpty;
+    final imageProvider = hasPhoto ? NetworkImage(chat.profileImage) : null;
+    final firstLetter = chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?';
+
+    return GestureDetector(
+      onLongPress: () => _showChatOptions(chat),
+      onTap: () => _navigateToChat(chat),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.cardDark,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor:
+                  hasPhoto ? Colors.transparent : AppTheme.primaryCyan,
+                  backgroundImage: imageProvider,
+                  child: !hasPhoto
+                      ? Text(
+                    firstLetter,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                      : null,
+                ),
+                if (chat.isOnline)
+                  Positioned(
+                    bottom: 2,
+                    right: 2,
+                    child: Container(
+                      width: 13,
+                      height: 13,
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.cardDark,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    chat.name,
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    chat.lastMessage.isNotEmpty
+                        ? chat.lastMessage
+                        : "Démarrer une conversation",
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
             Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
                   _formatTime(chat.timestamp),
                   style: GoogleFonts.inter(
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.textSecondary.withOpacity(0.8),
                     fontSize: 12,
                   ),
                 ),
                 const SizedBox(height: 8),
-                // BOUTON SUPPRESSION AVEC CERCLE ROUGE
-                GestureDetector(
-                  onTap: () {
-                    _showDeleteConfirmationDirect(chat);
-                  },
-                  child: Container(
-                    width: 23,
-                    height: 23,
+                if (chat.unreadCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      gradient: AppTheme.primaryGradient,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 14,
+                    child: Text(
+                      chat.unreadCount.toString(),
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
-            const SizedBox(height: 2),
-            // Badge messages non lus
-            if (chat.unreadCount > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  chat.unreadCount.toString(),
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
           ],
         ),
-        onTap: () {
-          _navigateToChat(chat);
-        },
-        onLongPress: () {
-          _showChatOptions(chat);
-        },
       ),
     );
-  }
-
-  Widget _buildDeleteBackground() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.red.shade700, Colors.red.shade900],
-          begin: Alignment.centerRight,
-          end: Alignment.centerLeft,
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          const Icon(
-            Icons.delete,
-            color: Colors.white,
-            size: 30,
-          ),
-          const SizedBox(width: 20),
-          Text(
-            'Supprimer',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(width: 20),
-        ],
-      ),
-    );
-  }
-
-  Future<bool> _showDeleteConfirmation(Chat chat) async {
-    return await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppTheme.cardDark,
-          title: Text(
-            'Supprimer la conversation',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            'Voulez-vous vraiment supprimer la conversation avec ${chat.name} ? Cette action est irréversible.',
-            style: GoogleFonts.inter(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Annuler',
-                style: GoogleFonts.inter(
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(
-                'Supprimer',
-                style: GoogleFonts.inter(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
-  }
-
-  void _showDeleteConfirmationDirect(Chat chat) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.delete, color: Colors.red),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Supprimer',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Supprimer la conversation avec ${chat.name} ?',
-          style: GoogleFonts.inter(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Annuler',
-              style: GoogleFonts.inter(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteChat(chat);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteChat(Chat chat) async {
-    try {
-      await ChatService.deleteChat(chat.id);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Conversation avec ${chat.name} supprimée'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      print('❌ Erreur suppression: $e');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de la suppression: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
   }
 
   void _showChatOptions(Chat chat) {
@@ -570,190 +222,51 @@ class _ChatsScreenState extends State<ChatsScreen> {
       context: context,
       backgroundColor: AppTheme.cardDark,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Indicateur de glissement
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.textSecondary.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(2),
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.textSecondary.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: Text(
+                "Supprimer la discussion",
+                style: GoogleFonts.inter(color: Colors.red),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await ChatService.deleteChat(chat.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content:
+                    Text("Discussion avec ${chat.name} supprimée ✅"),
+                    backgroundColor: Colors.redAccent,
+                    duration: const Duration(seconds: 2),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Options
-              ListTile(
-                leading: Icon(Icons.archive, color: AppTheme.primaryCyan),
-                title: Text(
-                  'Archiver',
-                  style: GoogleFonts.inter(color: Colors.white),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _archiveChat(chat);
-                },
-              ),
-
-              ListTile(
-                leading: Icon(Icons.delete, color: Colors.red),
-                title: Text(
-                  'Supprimer',
-                  style: GoogleFonts.inter(color: Colors.red),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDeleteDialog(chat);
-                },
-              ),
-
-              ListTile(
-                leading: Icon(Icons.block, color: Colors.orange),
-                title: Text(
-                  'Bloquer',
-                  style: GoogleFonts.inter(color: Colors.white),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showBlockDialog(chat);
-                },
-              ),
-
-              const SizedBox(height: 10),
-              Divider(color: AppTheme.textSecondary.withOpacity(0.3)),
-
-              ListTile(
-                leading: Icon(Icons.cancel, color: AppTheme.textSecondary),
-                title: Text(
-                  'Annuler',
-                  style: GoogleFonts.inter(color: AppTheme.textSecondary),
-                ),
-                onTap: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showDeleteDialog(Chat chat) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
-        title: Text(
-          'Supprimer définitivement',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          'La conversation avec ${chat.name} sera supprimée définitivement. Cette action ne peut pas être annulée.',
-          style: GoogleFonts.inter(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Annuler',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                );
+              },
             ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteChat(chat);
-            },
-            child: Text(
-              'Supprimer',
-              style: GoogleFonts.inter(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
+            ListTile(
+              leading: Icon(Icons.cancel, color: AppTheme.textSecondary),
+              title: Text(
+                "Annuler",
+                style: GoogleFonts.inter(color: AppTheme.textSecondary),
               ),
+              onTap: () => Navigator.pop(context),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _archiveChat(Chat chat) async {
-    try {
-      final currentUserId = FirebaseAuth.instance.currentUser!.uid;
-      await ChatService.archiveChat(chat.id, currentUserId);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Conversation avec ${chat.name} archivée'),
-          backgroundColor: Colors.green,
+          ],
         ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de l\'archivage: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _showBlockDialog(Chat chat) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
-        title: Text(
-          'Bloquer ${chat.name}',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          'Vous ne recevrez plus de messages de cette personne. Ils ne pourront pas non plus voir votre statut en ligne.',
-          style: GoogleFonts.inter(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Annuler',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Implémentez la logique de blocage ici
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${chat.name} a été bloqué'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            },
-            child: Text(
-              'Bloquer',
-              style: GoogleFonts.inter(color: Colors.orange),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -763,7 +276,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(
+        builder: (_) => ChatScreen(
           chat: chat,
           currentUserId: currentUserId,
         ),
@@ -773,22 +286,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   String _formatTime(DateTime timestamp) {
     final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = DateTime(now.year, now.month, now.day - 1);
-
-    if (difference.inMinutes < 1) {
-      return 'Maintenant';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h';
-    } else if (timestamp.isAfter(yesterday)) {
-      return 'Hier';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}j';
-    } else {
-      return '${timestamp.day}/${timestamp.month}';
-    }
+    final diff = now.difference(timestamp);
+    if (diff.inMinutes < 1) return "Maintenant";
+    if (diff.inHours < 1) return "${diff.inMinutes}m";
+    if (diff.inDays < 1) return "${diff.inHours}h";
+    if (diff.inDays == 1) return "Hier";
+    return "${timestamp.day}/${timestamp.month}";
   }
 }

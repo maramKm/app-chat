@@ -4,6 +4,7 @@ enum MessageType {
   text,
   image,
   file,
+  audio,
 }
 
 class Message {

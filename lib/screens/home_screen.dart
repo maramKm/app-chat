@@ -4,6 +4,10 @@ import 'package:app_chat/theme/app_theme.dart';
 import 'chats_screen.dart';
 import 'contacts_screen.dart';
 import 'profile_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:app_chat/services/friend_service.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -61,28 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFloatingActionButton() {
-    if (_currentIndex == 0) {
-      return FloatingActionButton(
-        onPressed: () => _showNewChatModal(context),
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryCyan.withOpacity(0.5),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: const Icon(Icons.chat, color: Colors.white),
-        ),
-      );
-    } else if (_currentIndex == 1) {
+    if (_currentIndex == 1) {
       return FloatingActionButton(
         onPressed: () => _showAddContactModal(context),
         backgroundColor: Colors.transparent,
@@ -176,7 +159,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showNewChatModal(BuildContext context) {
+
+  void _showAddContactModal(BuildContext context) {
+    final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    final FriendService _friendService = FriendService();
+    final currentUser = _auth.currentUser;
+
+    if (currentUser == null) return;
+
+    String searchQuery = "";
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.cardDark,
@@ -184,156 +177,220 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppTheme.textSecondary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'New Conversation',
-              style: GoogleFonts.orbitron(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTheme.textSecondary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Add Contact',
+                    style: GoogleFonts.orbitron(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 🔍 Search field
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search by username or email...',
+                      hintStyle: TextStyle(color: AppTheme.textSecondary),
+                      prefixIcon: Icon(Icons.search, color: AppTheme.primaryCyan),
+                      filled: true,
+                      fillColor: AppTheme.darkBackground,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                    style: TextStyle(color: AppTheme.textPrimary),
+                    onChanged: (val) => setModalState(() => searchQuery = val.trim()),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 🧩 Real-time user list
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: _firestore.collection('users').snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        final allUsers = snapshot.data!.docs;
+                        final filtered = allUsers.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final name =
+                          (data['name'] ?? '').toString().toLowerCase();
+                          final email =
+                          (data['email'] ?? '').toString().toLowerCase();
+                          final match = searchQuery.isEmpty ||
+                              name.contains(searchQuery.toLowerCase()) ||
+                              email.contains(searchQuery.toLowerCase());
+                          return match && doc.id != currentUser.uid;
+                        }).toList();
+
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: _firestore
+                              .collection('friend_requests')
+                              .snapshots(),
+                          builder: (context, reqSnapshot) {
+                            if (!reqSnapshot.hasData) {
+                              return const Center(
+                                  child: CircularProgressIndicator());
+                            }
+
+                            final requests = reqSnapshot.data!.docs;
+
+                            return ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final userDoc = filtered[index];
+                                final userId = userDoc.id;
+                                final data =
+                                userDoc.data() as Map<String, dynamic>;
+                                final name = data['name'] ?? 'Utilisateur';
+                                final email = data['email'] ?? '';
+                                final profileImage =
+                                    data['profileImage'] ?? '';
+
+                                // Vérifier les états
+                                final outgoing = requests.where((r) =>
+                                r['fromUserId'] == currentUser.uid &&
+                                    r['toUserId'] == userId &&
+                                    r['status'] == 'pending');
+
+                                final incoming = requests.where((r) =>
+                                r['fromUserId'] == userId &&
+                                    r['toUserId'] == currentUser.uid &&
+                                    r['status'] == 'pending');
+
+                                final accepted = requests.where((r) =>
+                                ((r['fromUserId'] == currentUser.uid &&
+                                    r['toUserId'] == userId) ||
+                                    (r['fromUserId'] == userId &&
+                                        r['toUserId'] == currentUser.uid)) &&
+                                    r['status'] == 'accepted');
+
+                                // Déjà amis → cacher
+                                if (accepted.isNotEmpty)
+                                  return const SizedBox.shrink();
+
+                                String label = "Add";
+                                Color color = AppTheme.primaryCyan;
+                                VoidCallback? onPressed;
+
+                                if (outgoing.isNotEmpty) {
+                                  label = "Invitation envoyée";
+                                  color = Colors.grey;
+                                  onPressed = null;
+                                } else if (incoming.isNotEmpty) {
+                                  label = "Accepter";
+                                  color = Colors.green;
+                                  final reqId = incoming.first.id;
+                                  final reqData =
+                                  incoming.first.data() as Map<String, dynamic>;
+                                  onPressed = () async {
+                                    await _friendService.acceptFriendRequest(
+                                        reqId, reqData);
+                                  };
+                                } else {
+                                  onPressed = () async {
+                                    await _friendService.sendFriendRequest(
+                                      fromUserId: currentUser.uid,
+                                      toUserId: userId,
+                                      fromUserInfo: {
+                                        'name': currentUser.displayName ?? '',
+                                        'email': currentUser.email ?? '',
+                                        'profileImage': currentUser.photoURL ?? '',
+                                      },
+                                      toUserInfo: {
+                                        'name': data['name'] ?? '',
+                                        'email': data['email'] ?? '',
+                                        'profileImage': data['profileImage'] ?? '',
+                                      },
+                                    );
+
+                                  };
+                                }
+
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppTheme.primaryCyan,
+                                    backgroundImage: profileImage.isNotEmpty
+                                        ? NetworkImage(profileImage)
+                                        : null,
+                                    child: profileImage.isEmpty
+                                        ? Text(
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : "?",
+                                      style:
+                                      const TextStyle(color: Colors.white),
+                                    )
+                                        : null,
+                                  ),
+                                  title: Text(name,
+                                      style: TextStyle(
+                                          color: AppTheme.textPrimary,
+                                          fontWeight: FontWeight.w600)),
+                                  subtitle: Text(email,
+                                      style: TextStyle(
+                                          color: AppTheme.textSecondary,
+                                          fontSize: 13)),
+                                  trailing: ElevatedButton(
+                                    onPressed: onPressed,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: color,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(15),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      label,
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
               ),
-            ),
-            const SizedBox(height: 20),
-            _buildModalOption(
-              icon: Icons.person_add,
-              title: 'New Contact',
-              subtitle: 'Start chat with new contact',
-              onTap: () {
-                Navigator.pop(context);
-                // Implémenter la logique nouveau contact
-              },
-            ),
-            const SizedBox(height: 15),
-            _buildModalOption(
-              icon: Icons.group,
-              title: 'New Group',
-              subtitle: 'Create group conversation',
-              onTap: () {
-                Navigator.pop(context);
-                // Implémenter la logique nouveau groupe
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  void _showAddContactModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.cardDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppTheme.textSecondary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Add Contact',
-              style: GoogleFonts.orbitron(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Search by username or email...',
-                hintStyle: TextStyle(color: AppTheme.textSecondary),
-                prefixIcon: Icon(Icons.search, color: AppTheme.primaryCyan),
-                filled: true,
-                fillColor: AppTheme.darkBackground,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              ),
-              style: TextStyle(color: AppTheme.textPrimary),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: 0, // Remplacez par vos contacts suggérés
-                itemBuilder: (context, index) => ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppTheme.primaryCyan,
-                    child: Text(
-                      'U',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text(
-                    'Suggested User',
-                    style: TextStyle(color: AppTheme.textPrimary),
-                  ),
-                  subtitle: Text(
-                    'user@example.com',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryCyan,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: Text(
-                      'Add',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildModalOption({
     required IconData icon,

@@ -45,5 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+    <string>Permet d’enregistrer des messages vocaux pour les partager.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Permet de prendre des photos pour le profil ou le chat.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Permet de sélectionner des images depuis la galerie.</string>
+
 </dict>
 </plist>
