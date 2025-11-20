@@ -15,8 +15,7 @@ import 'package:app_chat/theme/app_theme.dart';
 import 'package:app_chat/models/chat_model.dart';
 import 'package:app_chat/models/message_model.dart';
 import 'package:app_chat/services/chat_service.dart';
-import 'dart:io' show File, Directory; // NOTE: dart:io is NOT available on web — if you compile for web, remove usage or use conditional imports.
-
+import 'dart:io' show File, Directory; 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
   final String currentUserId;

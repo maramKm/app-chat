@@ -12,6 +12,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const KonvoApp());
 }
 
@@ -26,20 +27,9 @@ class KonvoApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
       debugShowCheckedModeBanner: false,
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SplashScreen();
-          }
 
-          if (snapshot.hasData && snapshot.data != null) {
-            return const HomeScreen();
-          }
-
-          return const AuthScreen();
-        },
-      ),
+      // 👇 SplashScreen ALWAYS first
+      home: const SplashScreen(),
     );
   }
 }

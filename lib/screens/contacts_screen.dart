@@ -51,9 +51,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.cardDark,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(20.0),
+          bottomRight: Radius.circular(20.0),
         ),
       ),
       child: TabBar(
@@ -61,7 +61,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         unselectedLabelColor: AppTheme.textSecondary,
         indicatorColor: AppTheme.primaryCyan,
         tabs: [
-          Tab(text: 'Suggestions'),
+          const Tab(text: 'Suggestions'),
           Tab(
             child: StreamBuilder<QuerySnapshot>(
               stream: _friendService.getReceivedRequests(_currentUserId),
@@ -71,20 +71,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Demandes'),
+                    const Text('Demandes'),
                     if (count > 0) ...[
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6.0),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
                         decoration: BoxDecoration(
                           color: AppTheme.primaryCyan,
                           shape: BoxShape.circle,
                         ),
                         child: Text(
                           count.toString(),
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 10.0,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -95,7 +95,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               },
             ),
           ),
-          Tab(text: 'Contacts'),
+          const Tab(text: 'Contacts'),
         ],
       ),
     );
@@ -115,7 +115,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
             .map((doc) => User.fromMap(doc.data() as Map<String, dynamic>, doc.id))
             .toList();
 
-        // 🔥 Écoute les relations en temps réel
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('friend_requests')
@@ -130,7 +129,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
             final relations =
             relationSnap.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList();
 
-            // Liste finale visible
             final visibleUsers = <User>[];
 
             for (final user in allUsers) {
@@ -141,7 +139,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 orElse: () => {},
               );
 
-              // ✅ afficher uniquement ceux sans relation "accepted"
               if (relation.isEmpty) {
                 visibleUsers.add(user);
               } else if (relation['status'] == 'pending' ||
@@ -160,7 +157,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             }
 
             return ListView.builder(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16.0),
               itemCount: visibleUsers.length,
               itemBuilder: (context, index) {
                 final user = visibleUsers[index];
@@ -191,7 +188,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-
   Widget _buildFriendRequestsTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: _friendService.getReceivedRequests(_currentUserId),
@@ -212,7 +208,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         }
 
         return ListView.builder(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16.0),
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
@@ -248,7 +244,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
           children: [
             _buildContactsHeader(friendsData.length),
             ...friendsData.map((friendData) {
-              // On crée un User avec les infos correctes de l'autre utilisateur
               final user = User.fromMap({
                 'id': friendData['id'],
                 'name': friendData['name'],
@@ -259,51 +254,50 @@ class _ContactsScreenState extends State<ContactsScreen> {
               }, friendData['id']);
 
               return _buildContactItem(user);
-            }).toList(),
+            }),
           ],
         );
       },
     );
   }
 
-
   Widget _buildSuggestionItem(User user, String? status) {
     final String firstLetter = (user.name.isNotEmpty ? user.name[0] : '?').toUpperCase();
 
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: AppTheme.cardDark,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(15.0),
       ),
       child: Row(
         children: [
           user.profileImage.isNotEmpty
-              ? CircleAvatar(radius: 25, backgroundImage: NetworkImage(user.profileImage))
+              ? CircleAvatar(radius: 25.0, backgroundImage: NetworkImage(user.profileImage))
               : CircleAvatar(
-            radius: 25,
+            radius: 25.0,
             backgroundColor: AppTheme.primaryCyan.withOpacity(0.8),
-            child: Text(firstLetter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
+            child: Text(firstLetter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20.0)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 12.0),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(user.name.isNotEmpty ? user.name : 'Utilisateur', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
-                Text(user.email, style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 12)),
+                Text(user.email, style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 12.0)),
               ],
             ),
           ),
           if (status == 'none' || status == null)
             ElevatedButton(
               onPressed: () => _sendFriendRequest(user),
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryCyan, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryCyan, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0))),
               child: const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           else if (status == 'sent')
-            ElevatedButton(onPressed: null, style: ElevatedButton.styleFrom(backgroundColor: Colors.grey, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))), child: const Text('Invitation sent', style: TextStyle(color: Colors.white)))
+            ElevatedButton(onPressed: null, style: ElevatedButton.styleFrom(backgroundColor: Colors.grey, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0))), child: const Text('Invitation sent', style: TextStyle(color: Colors.white)))
           else if (status == 'received')
               Row(
                 children: [
@@ -342,14 +336,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-
-
   Widget _buildFriendRequestItem(String requestId, Map<String, dynamic> data) {
     final fromUserInfo = data['fromUserInfo'] as Map<String, dynamic>;
 
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -359,13 +351,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(15.0),
       ),
       child: Row(
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 50.0,
+            height: 50.0,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               image: DecorationImage(
@@ -376,7 +368,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ),
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12.0),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,15 +384,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   fromUserInfo['email'] ?? '',
                   style: GoogleFonts.inter(
                     color: AppTheme.textSecondary,
-                    fontSize: 12,
+                    fontSize: 12.0,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4.0),
                 Text(
                   'Il y a ${_formatTimestamp(data['timestamp'])}',
                   style: GoogleFonts.inter(
                     color: AppTheme.textSecondary.withOpacity(0.7),
-                    fontSize: 10,
+                    fontSize: 10.0,
                   ),
                 ),
               ],
@@ -408,30 +400,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
           Row(
             children: [
-              // Bouton Accepter
               Container(
-                width: 40,
-                height: 40,
+                width: 40.0,
+                height: 40.0,
                 decoration: BoxDecoration(
                   color: AppTheme.primaryCyan,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: Icon(Icons.check, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.check, color: Colors.white, size: 20.0),
                   onPressed: () => _acceptFriendRequest(requestId, data),
                 ),
               ),
-              SizedBox(width: 8),
-              // Bouton Refuser
+              const SizedBox(width: 8.0),
               Container(
-                width: 40,
-                height: 40,
+                width: 40.0,
+                height: 40.0,
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.7),
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: Icon(Icons.close, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 20.0),
                   onPressed: () => _rejectFriendRequest(requestId),
                 ),
               ),
@@ -443,25 +433,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildContactsHeader(int count) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return const Padding(
+      padding: EdgeInsets.all(16.0),
       child: Row(
         children: [
           Text(
             'Contacts',
-            style: GoogleFonts.orbitron(
-              fontSize: 24,
+            style: TextStyle(
+              fontSize: 24.0,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
           Spacer(),
-          Text(
-            '$count amis',
-            style: GoogleFonts.inter(
-              color: AppTheme.textSecondary,
-            ),
-          ),
         ],
       ),
     );
@@ -472,8 +456,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
       leading: Stack(
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 50.0,
+            height: 50.0,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               image: DecorationImage(
@@ -486,17 +470,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
           if (user.isOnline)
             Positioned(
-              right: 0,
-              bottom: 0,
+              right: 0.0,
+              bottom: 0.0,
               child: Container(
-                width: 14,
-                height: 14,
+                width: 14.0,
+                height: 14.0,
                 decoration: BoxDecoration(
                   color: Colors.green,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: AppTheme.darkBackground,
-                    width: 2,
+                    width: 2.0,
                   ),
                 ),
               ),
@@ -514,38 +498,37 @@ class _ContactsScreenState extends State<ContactsScreen> {
         user.isOnline ? 'En ligne' : 'Hors ligne',
         style: GoogleFonts.inter(
           color: AppTheme.textSecondary,
-          fontSize: 12,
+          fontSize: 12.0,
         ),
       ),
       trailing: Container(
-        width: 40,
-        height: 40,
+        width: 40.0,
+        height: 40.0,
         decoration: BoxDecoration(
           gradient: AppTheme.primaryGradient,
           shape: BoxShape.circle,
         ),
-        child: Icon(
+        child: const Icon(
           Icons.chat,
           color: Colors.white,
-          size: 20,
+          size: 20.0,
         ),
       ),
       onTap: () => _startConversation(user),
       onLongPress: () async {
-        // Confirmer la suppression
         final confirm = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text('Supprimer ce contact ?'),
+            title: const Text('Supprimer ce contact ?'),
             content: Text('Voulez-vous vraiment retirer ${user.name} de vos contacts ?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text('Annuler'),
+                child: const Text('Annuler'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text('Supprimer'),
+                child: const Text('Supprimer'),
               ),
             ],
           ),
@@ -577,7 +560,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-
   Widget _buildLoadingWidget() {
     return Center(
       child: Column(
@@ -586,7 +568,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryCyan),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16.0),
           Text(
             'Chargement...',
             style: GoogleFonts.inter(
@@ -605,17 +587,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 50),
-            SizedBox(height: 16),
+            const Icon(Icons.error_outline, color: Colors.red, size: 50.0),
+            const SizedBox(height: 16.0),
             Text(
               message,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 color: Colors.red,
-                fontSize: 16,
+                fontSize: 16.0,
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20.0),
             ElevatedButton(
               onPressed: () {
                 setState(() {});
@@ -623,7 +605,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryCyan,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(20.0),
                 ),
               ),
               child: Text(
@@ -644,17 +626,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.group_add, color: AppTheme.textSecondary.withOpacity(0.5), size: 80),
-          SizedBox(height: 16),
+          Icon(Icons.group_add, color: AppTheme.textSecondary.withOpacity(0.5), size: 80.0),
+          const SizedBox(height: 16.0),
           Text(
             'Aucune demande d\'ami',
             style: GoogleFonts.inter(
               color: AppTheme.textPrimary,
-              fontSize: 18,
+              fontSize: 18.0,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8.0),
           Text(
             'Les demandes d\'ami apparaîtront ici',
             style: GoogleFonts.inter(
@@ -671,17 +653,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.people, color: AppTheme.textSecondary.withOpacity(0.5), size: 80),
-          SizedBox(height: 16),
+          Icon(Icons.people, color: AppTheme.textSecondary.withOpacity(0.5), size: 80.0),
+          const SizedBox(height: 16.0),
           Text(
             'Aucun contact',
             style: GoogleFonts.inter(
               color: AppTheme.textPrimary,
-              fontSize: 18,
+              fontSize: 18.0,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8.0),
           Text(
             'Ajoutez des amis pour commencer',
             style: GoogleFonts.inter(
@@ -693,7 +675,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  // Méthodes d'actions
   void _sendFriendRequest(User user) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser!;
@@ -742,7 +723,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
-
   void _acceptFriendRequest(String requestId, Map<String, dynamic> data) async {
     try {
       await _friendService.acceptFriendRequest(requestId, data);
@@ -790,7 +770,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       final chat = await ChatService.getOrCreateChat(
         currentUserId: currentUserId,
         otherUserId: user.id,
-        otherUserName: user.name, // ← C'est ce nom qui sera dans widget.chat.name
+        otherUserName: user.name,
         otherUserProfileImage: user.profileImage,
       );
 

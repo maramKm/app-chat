@@ -40,14 +40,13 @@ class FriendService {
         'toUserInfo': toUserInfo,
       });
 
-      print('✅ Demande d’ami envoyée');
+      print('Demande d’ami envoyée');
     } catch (e) {
-      print('❌ Erreur envoi demande: $e');
+      print('Erreur envoi demande: $e');
       rethrow;
     }
   }
 
-  /// 🔹 Accepter une demande d’ami
   Future<void> acceptFriendRequest(String requestId,
       Map<String, dynamic> requestData) async {
     try {
@@ -80,14 +79,13 @@ class FriendService {
         });
       }
 
-      print('✅ Demande d’ami acceptée dans les deux sens');
+      print('Demande d’ami acceptée dans les deux sens');
     } catch (e) {
-      print('❌ Erreur acceptation: $e');
+      print('Erreur acceptation: $e');
       rethrow;
     }
   }
 
-  /// 🔹 Refuser une demande
   Future<void> rejectFriendRequest(String requestId) async {
     await _firestore
         .collection('friend_requests')
@@ -95,7 +93,6 @@ class FriendService {
         .update({'status': 'rejected'});
   }
 
-  /// 🔹 Supprimer un ami / toutes relations bidirectionnelles
   Future<void> removeFriend({
     required String userId,
     required String friendId,
@@ -119,14 +116,13 @@ class FriendService {
         await _firestore.collection('friend_requests').doc(doc.id).delete();
       }
 
-      print('✅ Ami supprimé avec succès');
+      print('Ami supprimé avec succès');
     } catch (e) {
-      print('❌ Erreur suppression ami: $e');
+      print('Erreur suppression ami: $e');
       rethrow;
     }
   }
 
-  /// 🔹 Récupérer les amis (fusion unique)
   Stream<List<Map<String, dynamic>>> getFriendsUsers(String userId) {
     try {
       return _firestore
@@ -160,12 +156,11 @@ class FriendService {
         return friendsMap.values.toList();
       });
     } catch (e) {
-      print('❌ Erreur getFriendsUsers: $e');
+      print('Erreur getFriendsUsers: $e');
       return Stream.value([]);
     }
   }
 
-  /// 🔹 Récupérer les demandes d’ami reçues en "pending"
   Stream<QuerySnapshot> getReceivedRequests(String userId) {
     return _firestore
         .collection('friend_requests')

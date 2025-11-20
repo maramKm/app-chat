@@ -50,6 +50,7 @@ dependencies:
   emoji_picker_flutter: ^3.1.0
   file_picker: ^8.1.2
   just_audio: ^0.9.38
+  nfc_manager: ^3.5.0
 
 dev_dependencies:
   flutter_test:

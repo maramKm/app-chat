@@ -7,6 +7,10 @@ import 'profile_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app_chat/services/friend_service.dart';
+import 'package:app_chat/services/nfc_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_profile_screen.dart'; 
+import 'package:app_chat/services/nfc_write_service.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -18,6 +22,41 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+@override
+void initState() {
+  super.initState();
+
+  // Lire automatiquement NFC (déjà intégré)
+  NFCService.startNFC((userIdScanned) async {
+    final userSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userIdScanned)
+        .get();
+
+    if (!mounted || !userSnap.exists) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserProfileScreen(
+          userId: userIdScanned,
+          userData: userSnap.data()!,
+        ),
+      ),
+    );
+  });
+
+  // Écrit ton UID dans le tag (si user connecté)
+  Future.delayed(const Duration(seconds: 2), () {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      NFCWriteService.writeUserId(uid);
+    }
+  });
+}
+
+
 
   final List<Widget> _screens = [
     const ChatsScreen(),
