@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:app_chat/theme/app_theme.dart';
-import 'package:app_chat/services/friend_service.dart';
+import 'package:konvo/theme/app_theme.dart';
+import 'package:konvo/services/friend_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class UserProfileScreen extends StatelessWidget {

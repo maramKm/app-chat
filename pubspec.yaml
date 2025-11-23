@@ -1,4 +1,4 @@
-name: app_chat
+name: konvo  
 description: "A modern real-time chat application."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -50,7 +50,10 @@ dependencies:
   emoji_picker_flutter: ^3.1.0
   file_picker: ^8.1.2
   just_audio: ^0.9.38
-  nfc_manager: ^3.5.0
+  nfc_manager: ^3.2.0
+  path_provider: ^2.1.0
+  connectivity_plus: ^7.0.0
+  flutter_webrtc: ^1.0.1
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +65,15 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.0  # Add this line
+
+
+# ADD THIS SECTION FOR APP ICONS
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/konvo.png"  # ← CHANGE TO YOUR EXISTING ASSET
+  adaptive_icon_background: "#1E1E2E"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

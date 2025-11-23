@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class FriendService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 🔹 Envoyer une demande d’ami
+  /// Envoyer une demande d’ami
   Future<void> sendFriendRequest({
     required String fromUserId,
     required String toUserId,
@@ -40,9 +40,7 @@ class FriendService {
         'toUserInfo': toUserInfo,
       });
 
-      print('Demande d’ami envoyée');
     } catch (e) {
-      print('Erreur envoi demande: $e');
       rethrow;
     }
   }
@@ -79,9 +77,7 @@ class FriendService {
         });
       }
 
-      print('Demande d’ami acceptée dans les deux sens');
     } catch (e) {
-      print('Erreur acceptation: $e');
       rethrow;
     }
   }
@@ -116,9 +112,7 @@ class FriendService {
         await _firestore.collection('friend_requests').doc(doc.id).delete();
       }
 
-      print('Ami supprimé avec succès');
     } catch (e) {
-      print('Erreur suppression ami: $e');
       rethrow;
     }
   }

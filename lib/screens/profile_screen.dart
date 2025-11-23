@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:app_chat/theme/app_theme.dart';
+import 'package:konvo/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:app_chat/services/auth_service.dart';
+import 'package:konvo/services/auth_service.dart';
+import 'auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,7 +19,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final AuthService _authService = AuthService();
 
   String profileImage = '';
@@ -55,11 +54,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickProfileImage() async {
     final XFile? image = await _imagePicker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 50, // réduit la taille
+      imageQuality: 50,
     );
 
     if (image != null) {
-      // Lire les octets directement depuis XFile
       final bytes = await image.readAsBytes();
       final base64Image = base64Encode(bytes);
 
@@ -67,8 +65,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => profileImage = base64Image);
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -112,15 +108,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 gradient: profileImage.isEmpty ? AppTheme.primaryGradient : null,
                 image: profileImage.isNotEmpty
                     ? DecorationImage(
-                  image: MemoryImage(base64Decode(profileImage)), // ← ici
-                  fit: BoxFit.cover,
-                )
+                        image: MemoryImage(base64Decode(profileImage)),
+                        fit: BoxFit.cover,
+                      )
                     : null,
               ),
               child: profileImage.isEmpty
                   ? const Icon(Icons.person, size: 50, color: Colors.white)
                   : null,
-
             ),
             Container(
               width: 40,
@@ -187,6 +182,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppTheme.cardDark,
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -196,21 +198,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             value: userProfile['name'] ?? '',
             onTap: () => _editField('Name', 'name'),
           ),
-          const Divider(color: AppTheme.textSecondary),
+          const Divider(color: AppTheme.textSecondary, height: 20),
           _buildInfoItem(
             icon: Icons.email,
             title: 'Email',
             value: userProfile['email'] ?? '',
             onTap: () => _editField('Email', 'email'),
           ),
-          const Divider(color: AppTheme.textSecondary),
+          const Divider(color: AppTheme.textSecondary, height: 20),
           _buildInfoItem(
             icon: Icons.phone,
             title: 'Phone',
             value: userProfile['phone'] ?? '',
             onTap: () => _editField('Phone', 'phone'),
           ),
-          const Divider(color: AppTheme.textSecondary),
+          const Divider(color: AppTheme.textSecondary, height: 20),
           _buildInfoItem(
             icon: Icons.info,
             title: 'Bio',
@@ -229,13 +231,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      contentPadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.symmetric(vertical: 8),
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           gradient: AppTheme.primaryGradient,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: Colors.white, size: 20),
       ),
@@ -244,16 +246,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: GoogleFonts.inter(
           color: AppTheme.textSecondary,
           fontSize: 14,
+          fontWeight: FontWeight.w500,
         ),
       ),
       subtitle: Text(
-        value,
+        value.isEmpty ? 'Not set' : value,
         style: GoogleFonts.inter(
           color: Colors.white,
           fontWeight: FontWeight.w600,
+          fontSize: 16,
         ),
       ),
-      trailing: const Icon(Icons.edit, color: Colors.cyan, size: 20),
+      trailing: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppTheme.primaryCyan.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(Icons.edit, color: Colors.cyan, size: 18),
+      ),
       onTap: onTap,
     );
   }
@@ -264,26 +276,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.cardDark,
-        title: Text('Edit $fieldName', style: GoogleFonts.orbitron(color: Colors.white)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Edit $fieldName',
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
         content: TextField(
           controller: controller,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: 'Enter your $fieldName',
             hintStyle: TextStyle(color: AppTheme.textSecondary),
+            filled: true,
+            fillColor: AppTheme.darkBackground,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.all(16),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _updateUserProfile({fieldKey: controller.text});
-            },
-            child: Text('Save', style: GoogleFonts.inter(color: AppTheme.primaryCyan)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _updateUserProfile({fieldKey: controller.text});
+              },
+              child: Text(
+                'Save',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -298,13 +344,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.red.withOpacity(0.8), Colors.orange.withOpacity(0.8)],
-        ),
+        gradient: AppTheme.secondaryGradient, 
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.3),
+            color: AppTheme.primaryPurple.withOpacity(0.4),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -315,8 +359,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.logout, color: Colors.white),
-            const SizedBox(width: 8),
+            const Icon(Icons.logout, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
             Text(
               'Logout',
               style: GoogleFonts.orbitron(
@@ -334,24 +378,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _confirmLogout() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.cardDark,
-        title: Text('Logout', style: GoogleFonts.orbitron(color: Colors.white)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Logout',
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+            fontSize: 22,
+          ),
+        ),
         content: Text(
           'Are you sure you want to logout?',
-          style: GoogleFonts.inter(color: AppTheme.textSecondary),
+          style: GoogleFonts.inter(
+            color: AppTheme.textSecondary,
+            fontSize: 16,
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _authService.signOut();
+            onPressed: () {
+              Navigator.of(dialogContext, rootNavigator: true).pop();
             },
-            child: Text('Logout', style: GoogleFonts.inter(color: Colors.red)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: AppTheme.secondaryGradient, 
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext, rootNavigator: true).pop();
+                await _authService.signOut();
+
+                if (!mounted) return;
+
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthScreen()),
+                  (route) => false,
+                );
+              },
+              child: Text(
+                'Logout',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
         ],
       ),

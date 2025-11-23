@@ -1,3 +1,4 @@
+// models/user_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class User {
@@ -7,6 +8,7 @@ class User {
   final String profileImage;
   final bool isOnline;
   final DateTime lastSeen;
+  final DateTime lastHeartbeat; // ← NOUVEAU CHAMP
 
   User({
     required this.id,
@@ -15,9 +17,9 @@ class User {
     required this.profileImage,
     required this.isOnline,
     required this.lastSeen,
+    required this.lastHeartbeat, // ← AJOUTÉ
   });
 
-  // Méthode fromMap manquante
   factory User.fromMap(Map<String, dynamic> data, String id) {
     return User(
       id: id,
@@ -26,10 +28,10 @@ class User {
       profileImage: data['profileImage'] ?? '',
       isOnline: data['isOnline'] ?? false,
       lastSeen: (data['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastHeartbeat: (data['lastHeartbeat'] as Timestamp?)?.toDate() ?? DateTime.now(), // ← AJOUTÉ
     );
   }
 
-  // Méthode pour convertir en Map (optionnel)
   Map<String, dynamic> toMap() {
     return {
       'name': name,
@@ -37,6 +39,7 @@ class User {
       'profileImage': profileImage,
       'isOnline': isOnline,
       'lastSeen': Timestamp.fromDate(lastSeen),
+      'lastHeartbeat': Timestamp.fromDate(lastHeartbeat), // ← AJOUTÉ
     };
   }
 }

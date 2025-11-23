@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:app_chat/theme/app_theme.dart';
-import 'package:app_chat/models/user_model.dart';
-import 'package:app_chat/models/chat_model.dart';
-import 'package:app_chat/screens/chat_screen.dart';
-import 'package:app_chat/services/friend_service.dart';
-import 'package:app_chat/services/chat_service.dart';
+import 'package:konvo/theme/app_theme.dart';
+import 'package:konvo/models/user_model.dart';
+import 'package:konvo/screens/chat_screen.dart';
+import 'package:konvo/services/friend_service.dart';
+import 'package:konvo/services/chat_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 
@@ -793,15 +792,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
-  String _formatLastSeen(DateTime lastSeen) {
-    final now = DateTime.now();
-    final difference = now.difference(lastSeen);
-
-    if (difference.inMinutes < 1) return 'à l\'instant';
-    if (difference.inHours < 1) return 'il y a ${difference.inMinutes}min';
-    if (difference.inDays < 1) return 'il y a ${difference.inHours}h';
-    return 'il y a ${difference.inDays}j';
-  }
 
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return 'quelques instants';

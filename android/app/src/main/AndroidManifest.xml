@@ -17,8 +17,16 @@
     <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- Caméra (si tu l’utilises ailleurs) -->
+    <!-- Caméra (si tu l'utilises ailleurs) -->
     <uses-permission android:name="android.permission.CAMERA"/>
+
+    <!-- NFC Permissions -->
+    <uses-permission android:name="android.permission.NFC" />
+    
+    <!-- NFC Feature (Important!) -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="false" />
 
     <!-- Required to query activities that can process text -->
     <queries>
@@ -29,7 +37,7 @@
     </queries>
 
     <application
-        android:label="app_chat"
+        android:label="konvo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
@@ -51,6 +59,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- NFC Intent Filters (Optional but recommended) -->
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+
+            <!-- NFC Tech List -->
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_tech_list" />
 
         </activity>
 

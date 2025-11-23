@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:app_chat/models/message_model.dart';
-import 'package:app_chat/models/chat_model.dart';
+import 'package:konvo/models/message_model.dart';
+import 'package:konvo/models/chat_model.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -34,9 +34,7 @@ class ChatService {
         'type': _messageTypeToString(message.type),
         'mediaUrl': message.mediaUrl,
       });
-      print('Message sauvegardé: ${message.text}');
     } catch (e) {
-      print('Erreur sauvegarde: $e');
       throw Exception('Erreur lors de l\'envoi du message: $e');
     }
   }
@@ -47,6 +45,8 @@ class ChatService {
         return 'image';
       case MessageType.file:
         return 'file';
+      case MessageType.audio:
+        return 'audio';
       default:
         return 'text';
     }
@@ -84,8 +84,6 @@ class ChatService {
     }
   }
 
-
-
   static Stream<List<Chat>> getChatsStream() {
     return FirebaseFirestore.instance
         .collection('chats')
@@ -109,7 +107,7 @@ class ChatService {
         .asyncMap((snapshot) async {
       List<Chat> chats = [];
       for (var doc in snapshot.docs) {
-        final chat = await _mapFirestoreToChatWithOtherUserName(doc, userId);
+        final chat = await _mapFirestoreToChatWithOtherUser(doc, userId);
         chats.add(chat);
       }
       return chats;
@@ -117,42 +115,37 @@ class ChatService {
   }
 
   static Future<Chat> createChat({
-    required String user1,
-    required String user2,
-    required String userName,
-    required String userProfileImage,
+    required String currentUserId,
+    required String otherUserId,
+    required String otherUserName,
+    required String otherUserProfileImage,
   }) async {
     try {
-      final chatId = _generateChatId(user1, user2);
-
-      final user1Name = await _getUserName(user1);
-      final user2Name = await _getUserName(user2);
+      final chatId = _generateChatId(currentUserId, otherUserId);
 
       final chat = Chat(
         id: chatId,
-        name: userName,
+        name: otherUserName,
         lastMessage: 'Démarrer la conversation',
         timestamp: DateTime.now(),
         unreadCount: 0,
         isOnline: false,
-        profileImage: userProfileImage,
+        profileImage: otherUserProfileImage,
         isGroup: false,
+        otherUserId: otherUserId, 
       );
 
       await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
         'id': chatId,
-        'name': userName,
+        'name': otherUserName,
         'lastMessage': 'Démarrer la conversation',
         'timestamp': FieldValue.serverTimestamp(),
         'unreadCount': 0,
         'isOnline': false,
-        'profileImage': userProfileImage,
+        'profileImage': otherUserProfileImage,
         'isGroup': false,
-        'participants': [user1, user2],
-        'participantNames': {
-          user1: user1Name,
-          user2: user2Name,
-        },
+        'participants': [currentUserId, otherUserId],
+        'otherUserId': otherUserId, 
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -177,13 +170,13 @@ class ChatService {
 
       Chat chat;
       if (chatDoc.exists) {
-        chat = await _mapFirestoreToChatWithOtherUserName(chatDoc, currentUserId);
+        chat = await _mapFirestoreToChatWithOtherUser(chatDoc, currentUserId);
       } else {
         chat = await createChat(
-          user1: currentUserId,
-          user2: otherUserId,
-          userName: otherUserName,
-          userProfileImage: otherUserProfileImage,
+          currentUserId: currentUserId,
+          otherUserId: otherUserId,
+          otherUserName: otherUserName,
+          otherUserProfileImage: otherUserProfileImage,
         );
       }
 
@@ -193,10 +186,18 @@ class ChatService {
     }
   }
 
-  static Future<Chat> _mapFirestoreToChatWithOtherUserName(DocumentSnapshot doc, String currentUserId) async {
+  static Future<Chat> _mapFirestoreToChatWithOtherUser(DocumentSnapshot doc, String currentUserId) async {
     final data = doc.data() as Map<String, dynamic>;
     final participants = List<String>.from(data['participants'] ?? []);
-    String otherUserName = await _getOtherUserName(participants, currentUserId);
+    
+    // Récupérer l'ID de l'autre utilisateur
+    String otherUserId = participants.firstWhere(
+      (id) => id != currentUserId,
+      orElse: () => currentUserId,
+    );
+    
+    // Récupérer le nom de l'autre utilisateur
+    String otherUserName = await _getUserName(otherUserId);
 
     return Chat(
       id: data['id'] ?? doc.id,
@@ -207,6 +208,7 @@ class ChatService {
       isOnline: data['isOnline'] ?? false,
       profileImage: data['profileImage'] ?? '',
       isGroup: data['isGroup'] ?? false,
+      otherUserId: data['otherUserId'] ?? otherUserId, 
     );
   }
 
@@ -221,21 +223,8 @@ class ChatService {
       isOnline: data['isOnline'] ?? false,
       profileImage: data['profileImage'] ?? '',
       isGroup: data['isGroup'] ?? false,
+      otherUserId: data['otherUserId'] ?? '', 
     );
-  }
-
-  static Future<String> _getOtherUserName(List<String> participants, String currentUserId) async {
-    try {
-      final otherUserId = participants.firstWhere(
-            (id) => id != currentUserId,
-        orElse: () => currentUserId,
-      );
-      if (otherUserId == currentUserId) return 'Moi-même';
-      return await _getUserName(otherUserId);
-    } catch (e) {
-      print('Erreur récupération nom autre utilisateur: $e');
-      return 'Utilisateur inconnu';
-    }
   }
 
   static Future<String> _getUserName(String userId) async {
@@ -252,7 +241,6 @@ class ChatService {
         return 'Utilisateur inconnu';
       }
     } catch (e) {
-      print('Erreur récupération nom utilisateur $userId: $e');
       return 'Utilisateur inconnu';
     }
   }
@@ -291,9 +279,7 @@ class ChatService {
 
       await FirebaseFirestore.instance.collection('chats').doc(chatId).delete();
 
-      print('Conversation supprimée: $chatId');
     } catch (e) {
-      print('Erreur suppression conversation: $e');
       throw Exception('Erreur lors de la suppression de la conversation: $e');
     }
   }
@@ -317,7 +303,6 @@ class ChatService {
       final data = chatDoc.data() as Map<String, dynamic>;
       return data['unreadCount'] ?? 0;
     } catch (e) {
-      print('Erreur récupération unreadCount: $e');
       return 0;
     }
   }

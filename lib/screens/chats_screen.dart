@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:app_chat/theme/app_theme.dart';
-import 'package:app_chat/models/chat_model.dart';
-import 'package:app_chat/services/chat_service.dart';
-import 'package:app_chat/screens/chat_screen.dart';
+import 'package:konvo/theme/app_theme.dart';
+import 'package:konvo/models/chat_model.dart';
+import 'package:konvo/services/chat_service.dart';
+import 'package:konvo/screens/chat_screen.dart';
 
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});

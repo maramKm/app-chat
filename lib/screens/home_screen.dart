@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:app_chat/theme/app_theme.dart';
+import 'package:konvo/theme/app_theme.dart';
 import 'chats_screen.dart';
 import 'contacts_screen.dart';
 import 'profile_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:app_chat/services/friend_service.dart';
-import 'package:app_chat/services/nfc_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:konvo/services/friend_service.dart';
+import 'package:konvo/services/nfc_service.dart';
 import 'user_profile_screen.dart'; 
-import 'package:app_chat/services/nfc_write_service.dart';
-
+import 'package:konvo/services/nfc_write_service.dart';
+import 'package:konvo/services/presence_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,41 +21,42 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final PresenceService _presenceService = PresenceService();
 
-@override
-void initState() {
-  super.initState();
+  @override
+  void initState() {
+    super.initState();
 
-  // Lire automatiquement NFC (déjà intégré)
-  NFCService.startNFC((userIdScanned) async {
-    final userSnap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userIdScanned)
-        .get();
+    _presenceService.startHeartbeat();
 
-    if (!mounted || !userSnap.exists) return;
+    // Lire automatiquement NFC (déjà intégré)
+    NFCService.startNFC((userIdScanned) async {
+      final userSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userIdScanned)
+          .get();
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => UserProfileScreen(
-          userId: userIdScanned,
-          userData: userSnap.data()!,
+      if (!mounted || !userSnap.exists) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => UserProfileScreen(
+            userId: userIdScanned,
+            userData: userSnap.data()!,
+          ),
         ),
-      ),
-    );
-  });
+      );
+    });
 
-  // Écrit ton UID dans le tag (si user connecté)
-  Future.delayed(const Duration(seconds: 2), () {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      NFCWriteService.writeUserId(uid);
-    }
-  });
-}
-
-
+    // Écrit ton UID dans le tag (si user connecté)
+    Future.delayed(const Duration(seconds: 2), () {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        NFCWriteService.writeUserId(uid);
+      }
+    });
+  }
 
   final List<Widget> _screens = [
     const ChatsScreen(),
@@ -69,37 +69,149 @@ void initState() {
     return Scaffold(
       backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
-        title: ShaderMask(
-          shaderCallback: (bounds) =>
-              AppTheme.primaryGradient.createShader(bounds),
-          child: Text(
-            'KONVO',
-            style: GoogleFonts.orbitron(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-
-        actions: [
-          IconButton(
-            icon: Icon(Icons.search, color: AppTheme.textPrimary),
-            onPressed: () {
-              showSearch(
-                context: context,
-                delegate: ChatSearchDelegate(),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.more_vert, color: AppTheme.textPrimary),
-            onPressed: () => _showMoreOptions(context),
-          ),
-        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: _buildCreativeLeading(),
+        title: _buildCreativeTitle(),
+        actions: const [],
       ),
       body: _screens[_currentIndex],
       floatingActionButton: _buildFloatingActionButton(),
       bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildCreativeLeading() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16.0),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppTheme.primaryGradient,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryCyan.withOpacity(0.5),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.nfc, color: Colors.white, size: 20),
+          onPressed: () {
+            _showNFCDialog(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreativeTitle() {
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryCyan.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.chat_bubble,
+          color: Colors.white,
+          size: 18,
+        ),
+      ),
+      const SizedBox(width: 12),
+      // Texte avec gradient mais SANS fond
+      ShaderMask(
+        shaderCallback: (bounds) =>
+            AppTheme.primaryGradient.createShader(bounds),
+        child: Text(
+          'Konvo',
+          style: GoogleFonts.orbitron(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+            color: Colors.white, 
+          ),
+        ),
+      ),
+      StreamBuilder<Object?>(
+        stream: Stream.periodic(const Duration(seconds: 2)),
+        builder: (context, snapshot) {
+          return Container(
+            margin: const EdgeInsets.only(left: 8),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.primaryCyan,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryCyan.withOpacity(0.7),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ],
+  );
+}
+
+  void _showNFCDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.nfc, color: AppTheme.primaryCyan),
+            const SizedBox(width: 12),
+            Text(
+              'NFC Ready',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Your device is ready for NFC connections. Bring another device close to share contacts instantly.',
+          style: GoogleFonts.inter(
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: AppTheme.primaryCyan,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -128,76 +240,6 @@ void initState() {
     }
     return const SizedBox.shrink();
   }
-
-  void _showMoreOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.cardDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppTheme.textSecondary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Options',
-              style: GoogleFonts.orbitron(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildModalOption(
-              icon: Icons.settings,
-              title: 'Settings',
-              subtitle: 'App preferences and configuration',
-              onTap: () {
-                Navigator.pop(context);
-                // Naviguer vers les paramètres
-              },
-            ),
-            const SizedBox(height: 15),
-            _buildModalOption(
-              icon: Icons.help,
-              title: 'Help & Support',
-              subtitle: 'Get help and contact support',
-              onTap: () {
-                Navigator.pop(context);
-                // Naviguer vers l'aide
-              },
-            ),
-            const SizedBox(height: 15),
-            _buildModalOption(
-              icon: Icons.info,
-              title: 'About',
-              subtitle: 'Learn about KONVO app',
-              onTap: () {
-                Navigator.pop(context);
-                // Naviguer vers about
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
 
   void _showAddContactModal(BuildContext context) {
     final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -249,7 +291,7 @@ void initState() {
                   ),
                   const SizedBox(height: 20),
 
-                  // 🔍 Search field
+                  // Search field
                   TextField(
                     decoration: InputDecoration(
                       hintText: 'Search by username or email...',
@@ -269,7 +311,7 @@ void initState() {
                   ),
                   const SizedBox(height: 20),
 
-                  // 🧩 Real-time user list
+                  // Real-time user list
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
                       stream: _firestore.collection('users').snapshots(),
@@ -431,42 +473,6 @@ void initState() {
   }
 
 
-  Widget _buildModalOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          gradient: AppTheme.primaryGradient,
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Icon(icon, color: Colors.white),
-      ),
-      title: Text(
-        title,
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: GoogleFonts.inter(
-          color: AppTheme.textSecondary,
-          fontSize: 14,
-        ),
-      ),
-      onTap: onTap,
-    );
-  }
-
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
@@ -588,7 +594,7 @@ class ChatSearchDelegate extends SearchDelegate<String> {
       color: AppTheme.darkBackground,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: 0, // Remplacez par vos résultats de recherche
+        itemCount: 0, 
         itemBuilder: (context, index) => Card(
           color: AppTheme.cardDark,
           margin: const EdgeInsets.symmetric(vertical: 4),
